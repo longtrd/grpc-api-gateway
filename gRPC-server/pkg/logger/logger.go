@@ -58,11 +58,7 @@ func New(levelStr, formatStr string) domain.Logger {
 
 // NewNullLogger creates a logger that discards all output (for testing)
 func NewNullLogger() domain.Logger {
-	return &Logger{
-		level:  InfoLevel,
-		format: TextFormat,
-		logger: log.New(os.Stdout, "", 0),
-	}
+	return &NullLogger{}
 }
 
 // Info logs an info message

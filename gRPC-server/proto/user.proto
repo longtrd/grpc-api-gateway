@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package user;
 
-option go_package = "github.com/longtrd/grpc-api-gateway/gRPC-server/proto/user";
+option go_package = "github.com/longtrd/grpc-api-gateway/gRPC-server/proto";
 
 message User {
     string id = 1;
