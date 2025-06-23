@@ -18,7 +18,6 @@ linters:
     - errcheck          # Check that error return values are used
     - govet             # Go vet examines Go source code and reports suspicious constructs
     - staticcheck       # Staticcheck is a go vet on steroids, applying tons of static analysis checks
-    - typecheck         # Parse and type-check Go code
     - unused            # Checks for unused constants, variables, functions and types
 
     # Bug prevention

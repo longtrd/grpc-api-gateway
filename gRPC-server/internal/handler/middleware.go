@@ -153,33 +153,20 @@ func TimeoutInterceptor(timeout time.Duration, logger domain.Logger) grpc.UnaryS
 		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
-		// Channel to receive result
-		resultChan := make(chan result, 1)
+		// Call handler directly with timeout context
+		// The handler should respect context cancellation
+		resp, err := handler(timeoutCtx, req)
 
-		// Run handler in goroutine
-		go func() {
-			resp, err := handler(timeoutCtx, req)
-			resultChan <- result{resp: resp, err: err}
-		}()
-
-		// Wait for either completion or timeout
-		select {
-		case res := <-resultChan:
-			return res.resp, res.err
-		case <-timeoutCtx.Done():
+		// Log timeout if context was cancelled due to deadline
+		if timeoutCtx.Err() == context.DeadlineExceeded {
 			logger.Warn("request timeout",
 				"method", info.FullMethod,
 				"timeout", timeout,
 			)
-			return nil, status.Errorf(codes.DeadlineExceeded, "request timeout")
 		}
-	}
-}
 
-// result is a helper struct for timeout interceptor
-type result struct {
-	resp interface{}
-	err  error
+		return resp, err
+	}
 }
 
 // isPublicMethod checks if a method should skip authentication
