@@ -5,7 +5,16 @@ run:
 
 linters:
   enable:
-    - errcheck
-    - govet
-    - staticcheck
-    - unused
+    - errcheck       # Check that error return values are used
+    - govet          # Go vet examines Go source code
+    - staticcheck    # Static analysis checks
+    - unused         # Check for unused constants, variables, functions and types
+    - gofmt          # Check whether code was gofmt-ed
+    - goimports      # Check import statements are formatted according to the 'goimport' command
+    - ineffassign    # Detect ineffectual assignments
+    - misspell       # Find commonly misspelled English words in comments
+    - gosimple       # Simplify a code
+    - typecheck      # Parse and type-check Go code
+    - unconvert      # Remove unnecessary type conversions
+    - revive         # Fast, configurable, extensible linter for Go
+    - gosec          # Security-oriented linter for Go code
