@@ -1,0 +1,100 @@
+version: '3.8'
+
+# Production override for docker-compose.yml
+services:
+  grpc-server:
+    # Production build optimizations
+    build:
+      context: ./gRPC-server
+      dockerfile: Dockerfile
+      args:
+        - BUILD_ENV=production
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+    # Security
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Environment
+    environment:
+      - GRPC_PORT=50051
+      - GRPC_HOST=0.0.0.0
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - DATABASE_TYPE=memory
+      - ENABLE_HEALTH_CHECK=true
+      - ENABLE_METRICS=true
+      - ENABLE_TRACING=false
+      - ENABLE_AUTH=false
+      - GRPC_READ_TIMEOUT=30s
+      - GRPC_WRITE_TIMEOUT=30s
+
+    # Health check with longer intervals
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50051"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Production monitoring (optional)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prometheus_data:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--web.console.libraries=/etc/prometheus/console_libraries'
+  #     - '--web.console.templates=/etc/prometheus/consoles'
+  #     - '--storage.tsdb.retention.time=200h'
+  #     - '--web.enable-lifecycle'
+  #   restart: unless-stopped
+  #   networks:
+  #     - grpc-network
+
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: grafana
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #     - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards:ro
+  #     - ./monitoring/datasources:/etc/grafana/provisioning/datasources:ro
+  #   restart: unless-stopped
+  #   networks:
+  #     - grpc-network
+
+# volumes:
+#   prometheus_data:
+#   grafana_data:

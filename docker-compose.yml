@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  grpc-server:
+    build:
+      context: ./gRPC-server
+      dockerfile: Dockerfile
+    container_name: grpc-server
+    ports:
+      - "50051:50051"
+    environment:
+      - GRPC_PORT=50051
+      - GRPC_HOST=0.0.0.0
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - ENVIRONMENT=development
+      - DATABASE_TYPE=memory
+      - ENABLE_HEALTH_CHECK=true
+      - ENABLE_METRICS=false
+      - ENABLE_TRACING=false
+      - ENABLE_AUTH=false
+    restart: unless-stopped
+    networks:
+      - grpc-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Example: Add API Gateway when ready
+  # api-gateway:
+  #   build:
+  #     context: ./api-gateway
+  #     dockerfile: Dockerfile
+  #   container_name: api-gateway
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - GRPC_SERVER_URL=grpc-server:50051
+  #   depends_on:
+  #     grpc-server:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   networks:
+  #     - grpc-network
+
+  # Example: Add database when needed
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: postgres
+  #   environment:
+  #     POSTGRES_DB: grpcserver
+  #     POSTGRES_USER: grpcuser
+  #     POSTGRES_PASSWORD: grpcpass
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - grpc-network
+
+networks:
+  grpc-network:
+    driver: bridge
+
+# volumes:
+#   postgres_data:
