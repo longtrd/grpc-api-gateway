@@ -40,8 +40,8 @@ func runStart(cmd *cobra.Command, args []string) {
 	// Load configuration
 	cfg := config.Load()
 
-	// Override port from command line if provided
-	if port != defaultPort {
+	// Override port from command line if explicitly provided
+	if cmd.Flags().Changed("port") {
 		cfg.Server.Port = port
 	}
 
