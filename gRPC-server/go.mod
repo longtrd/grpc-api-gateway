@@ -2,8 +2,6 @@ module github.com/longtrd/grpc-api-gateway/gRPC-server
 
 go 1.23.0
 
-toolchain go1.24.2
-
 require (
 	github.com/spf13/cobra v1.9.1
 	google.golang.org/grpc v1.73.0
