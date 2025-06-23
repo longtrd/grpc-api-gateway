@@ -1,0 +1,230 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# gRPC Best Practices
+
+## Error Handling with gRPC Status Codes
+Always use appropriate gRPC status codes based on [proto/user.proto](mdc:proto/user.proto) service definitions:
+
+```go
+import (
+    "google.golang.org/grpc/codes"
+    "google.golang.org/grpc/status"
+)
+
+// Error mapping examples
+func mapDomainError(err error) error {
+    switch {
+    case errors.Is(err, domain.ErrUserNotFound):
+        return status.Errorf(codes.NotFound, "user not found: %v", err)
+    case errors.Is(err, domain.ErrInvalidInput):
+        return status.Errorf(codes.InvalidArgument, "invalid input: %v", err)
+    case errors.Is(err, domain.ErrUserAlreadyExists):
+        return status.Errorf(codes.AlreadyExists, "user already exists: %v", err)
+    case errors.Is(err, domain.ErrUnauthorized):
+        return status.Errorf(codes.Unauthenticated, "unauthorized: %v", err)
+    default:
+        return status.Errorf(codes.Internal, "internal error: %v", err)
+    }
+}
+```
+
+## Context Handling
+Always respect context cancellation and timeouts:
+
+```go
+func (h *UserHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.GetUserResponse, error) {
+    // Check if context is already cancelled
+    if ctx.Err() != nil {
+        return nil, status.Errorf(codes.Cancelled, "request cancelled")
+    }
+    
+    user, err := h.usecase.GetUser(ctx, req.Id)
+    if err != nil {
+        return nil, mapDomainError(err)
+    }
+    
+    return &pb.GetUserResponse{User: h.adapter.ToProto(user)}, nil
+}
+```
+
+## Input Validation
+Validate all input at the handler level:
+
+```go
+func validateCreateUserRequest(req *pb.CreateUserRequest) error {
+    if req.User == nil {
+        return status.Errorf(codes.InvalidArgument, "user cannot be nil")
+    }
+    if req.User.Name == "" {
+        return status.Errorf(codes.InvalidArgument, "user name is required")
+    }
+    if req.User.Email == "" {
+        return status.Errorf(codes.InvalidArgument, "user email is required")
+    }
+    return nil
+}
+```
+
+## Interceptors for Cross-Cutting Concerns
+Implement middleware using gRPC interceptors:
+
+### Logging Interceptor
+```go
+func LoggingInterceptor(logger *log.Logger) grpc.UnaryServerInterceptor {
+    return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+        start := time.Now()
+        
+        resp, err := handler(ctx, req)
+        
+        duration := time.Since(start)
+        status := codes.OK
+        if err != nil {
+            status = status.Code(err)
+        }
+        
+        logger.Printf("gRPC call: %s, duration: %v, status: %v", info.FullMethod, duration, status)
+        
+        return resp, err
+    }
+}
+```
+
+### Recovery Interceptor
+```go
+func RecoveryInterceptor(logger *log.Logger) grpc.UnaryServerInterceptor {
+    return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+        defer func() {
+            if r := recover(); r != nil {
+                logger.Printf("panic in gRPC handler %s: %v", info.FullMethod, r)
+                err = status.Errorf(codes.Internal, "internal server error")
+            }
+        }()
+        
+        return handler(ctx, req)
+    }
+}
+```
+
+## Server Configuration in [cmd/commands/start.go](mdc:cmd/commands/start.go)
+Enhance the start command with proper interceptors and options:
+
+```go
+func createGRPCServer(container *config.Container) *grpc.Server {
+    opts := []grpc.ServerOption{
+        grpc.ChainUnaryInterceptor(
+            LoggingInterceptor(container.Logger),
+            RecoveryInterceptor(container.Logger),
+            AuthInterceptor(container.AuthService),
+        ),
+        grpc.MaxRecvMsgSize(4 * 1024 * 1024), // 4MB
+        grpc.MaxSendMsgSize(4 * 1024 * 1024), // 4MB
+    }
+    
+    return grpc.NewServer(opts...)
+}
+```
+
+## Protocol Buffer Best Practices
+
+### Use Proper Field Numbers
+```proto
+message User {
+    string id = 1;      // Never change field numbers
+    string name = 2;    // Use sequential numbering
+    string email = 3;   // Reserve numbers for future use
+    // reserved 4 to 10;
+}
+```
+
+### Versioning Strategy
+```proto
+service UserService {
+    rpc GetUserV1(GetUserV1Request) returns (GetUserV1Response);
+    rpc GetUserV2(GetUserV2Request) returns (GetUserV2Response);
+}
+```
+
+## Health Checks
+Implement gRPC health checking:
+
+```go
+import "google.golang.org/grpc/health"
+import "google.golang.org/grpc/health/grpc_health_v1"
+
+func registerHealthCheck(server *grpc.Server) {
+    healthServer := health.NewServer()
+    grpc_health_v1.RegisterHealthServer(server, healthServer)
+    
+    // Set service status
+    healthServer.SetServingStatus("user.UserService", grpc_health_v1.HealthCheckResponse_SERVING)
+}
+```
+
+## Reflection for Development
+Enable gRPC reflection for development:
+
+```go
+import "google.golang.org/grpc/reflection"
+
+func enableReflection(server *grpc.Server) {
+    reflection.Register(server)
+}
+```
+
+## Graceful Shutdown
+Implement proper shutdown in [cmd/commands/start.go](mdc:cmd/commands/start.go):
+
+```go
+func setupGracefulShutdown(server *grpc.Server, logger *log.Logger) {
+    sigChan := make(chan os.Signal, 1)
+    signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+    
+    go func() {
+        <-sigChan
+        logger.Println("Shutting down gRPC server...")
+        
+        // Give requests 30 seconds to finish
+        done := make(chan struct{})
+        go func() {
+            server.GracefulStop()
+            close(done)
+        }()
+        
+        select {
+        case <-done:
+            logger.Println("Server stopped gracefully")
+        case <-time.After(30 * time.Second):
+            logger.Println("Force stopping server")
+            server.Stop()
+        }
+    }()
+}
+```
+
+## Testing gRPC Services
+Use bufconn for testing without network:
+
+```go
+func TestUserService(t *testing.T) {
+    buffer := 101024 * 1024
+    listener := bufconn.Listen(buffer)
+    
+    server := grpc.NewServer()
+    pb.RegisterUserServiceServer(server, &UserHandler{})
+    
+    go func() {
+        server.Serve(listener)
+    }()
+    defer server.Stop()
+    
+    conn, err := grpc.DialContext(ctx, "", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+        return listener.Dial()
+    }), grpc.WithInsecure())
+    
+    client := pb.NewUserServiceClient(conn)
+    // Test your service...
+}
+```

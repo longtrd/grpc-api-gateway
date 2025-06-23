@@ -1,0 +1,3 @@
+module github.com/longtrd/grpc-api-gateway/api-gateway
+
+go 1.24.2

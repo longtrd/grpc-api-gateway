@@ -1,0 +1,19 @@
+{
+  "recommendations": [
+    "golang.go",
+    "ms-vscode.vscode-proto3",
+    "zxh404.vscode-proto3",
+    "streetsidesoftware.code-spell-checker",
+    "editorconfig.editorconfig",
+    "ms-vscode.makefile-tools",
+    "github.vscode-github-actions",
+    "ms-vscode.test-adapter-converter",
+    "hbenl.vscode-test-explorer",
+    "davidanson.vscode-markdownlint",
+    "yzhang.markdown-all-in-one",
+    "redhat.vscode-yaml",
+    "ms-vscode.hexeditor",
+    "golang.go-nightly"
+  ],
+  "unwantedRecommendations": ["ms-vscode.cpptools", "ms-dotnettools.csharp"]
+}

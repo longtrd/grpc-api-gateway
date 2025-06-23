@@ -1,0 +1,181 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Clean Architecture for gRPC Server
+
+## Project Structure Overview
+Based on [cmd/main.go](mdc:cmd/main.go) and [cmd/commands/start.go](mdc:cmd/commands/start.go), follow this layered architecture:
+
+```
+gRPC-server/
+├── cmd/                    # Application entry points
+├── internal/
+│   ├── domain/            # Business entities (innermost layer)
+│   ├── usecase/           # Business logic / application services
+│   ├── repository/        # Data access interfaces
+│   ├── handler/           # gRPC handlers (adapters)
+│   ├── infrastructure/    # External dependencies
+│   └── config/           # Configuration
+├── pkg/                   # Public libraries
+└── proto/                # Protocol buffer definitions
+```
+
+## Layer Dependencies (Dependency Rule)
+- **Domain** ← **UseCase** ← **Handler** ← **Infrastructure**
+- Inner layers should never depend on outer layers
+- Use dependency inversion to break dependencies
+
+## Domain Layer (Core Business Logic)
+- Contains business entities and rules
+- No dependencies on external frameworks
+- Pure Go structs and interfaces
+
+```go
+// internal/domain/user.go
+type User struct {
+    ID    string
+    Name  string
+    Email string
+}
+
+type UserRepository interface {
+    Save(ctx context.Context, user *User) error
+    FindByID(ctx context.Context, id string) (*User, error)
+}
+```
+
+## UseCase Layer (Application Services)
+- Orchestrates business operations
+- Depends only on domain layer
+- Contains application-specific logic
+
+```go
+// internal/usecase/user.go
+type UserUseCase struct {
+    repo UserRepository
+    validator UserValidator
+}
+
+func (uc *UserUseCase) CreateUser(ctx context.Context, user *User) error {
+    if err := uc.validator.Validate(user); err != nil {
+        return err
+    }
+    return uc.repo.Save(ctx, user)
+}
+```
+
+## Handler Layer (Interface Adapters)
+- Converts between gRPC and domain models
+- Handles protocol-specific concerns
+- References the protobuf from [proto/user.proto](mdc:proto/user.proto)
+
+```go
+// internal/handler/user_handler.go
+type UserHandler struct {
+    usecase UserUseCase
+    adapter UserAdapter
+}
+
+func (h *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.CreateUserResponse, error) {
+    user := h.adapter.FromProto(req.User)
+    err := h.usecase.CreateUser(ctx, user)
+    if err != nil {
+        return nil, err
+    }
+    return &pb.CreateUserResponse{User: h.adapter.ToProto(user)}, nil
+}
+```
+
+## Infrastructure Layer (External Dependencies)
+- Database implementations
+- External service clients
+- Framework-specific code
+
+```go
+// internal/infrastructure/repository/memory_user_repo.go
+type MemoryUserRepository struct {
+    users map[string]*domain.User
+    mutex sync.RWMutex
+}
+
+func (r *MemoryUserRepository) Save(ctx context.Context, user *domain.User) error {
+    r.mutex.Lock()
+    defer r.mutex.Unlock()
+    r.users[user.ID] = user
+    return nil
+}
+```
+
+## Configuration Layer
+- Environment-specific settings
+- Dependency injection setup
+
+```go
+// internal/config/config.go
+type Config struct {
+    Server ServerConfig
+    Database DatabaseConfig
+}
+
+type Container struct {
+    Config *Config
+    UserUseCase *usecase.UserUseCase
+    UserHandler *handler.UserHandler
+}
+```
+
+## Integration with Cobra CLI
+Extend [cmd/commands/start.go](mdc:cmd/commands/start.go) to use clean architecture:
+
+```go
+func runStart(cmd *cobra.Command, args []string) {
+    // Load configuration
+    cfg := config.Load()
+    
+    // Build dependency container
+    container := config.NewContainer(cfg)
+    
+    // Create gRPC server with clean architecture
+    server := grpc.NewServer()
+    pb.RegisterUserServiceServer(server, container.UserHandler)
+    
+    // Start server...
+}
+```
+
+## Key Principles
+
+### 1. Dependency Inversion
+- High-level modules don't depend on low-level modules
+- Both depend on abstractions (interfaces)
+
+### 2. Separation of Concerns
+- Each layer has a single responsibility
+- Business logic isolated from technical concerns
+
+### 3. Testability
+- Easy to mock dependencies
+- Unit test each layer independently
+
+### 4. Framework Independence
+- Core business logic doesn't depend on gRPC, databases, etc.
+- Can swap implementations without changing business rules
+
+### 5. Interface Segregation
+- Small, focused interfaces
+- Clients depend only on methods they use
+
+## Testing Strategy
+```go
+// Test usecase without infrastructure dependencies
+func TestUserUseCase_CreateUser(t *testing.T) {
+    mockRepo := &MockUserRepository{}
+    mockValidator := &MockUserValidator{}
+    
+    usecase := usecase.NewUserUseCase(mockRepo, mockValidator)
+    
+    // Test business logic in isolation
+}
+```

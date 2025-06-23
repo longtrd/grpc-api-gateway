@@ -1,0 +1,15 @@
+# golangci-lint configuration
+# Note: Using Makefile commands with CLI options for better compatibility
+
+version: "2"
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - gofmt
+    - goimports
+    - govet
+    - staticcheck
+    - unused

@@ -1,0 +1,72 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# SOLID Principles for gRPC Server
+
+## Single Responsibility Principle (SRP)
+- Each service should handle only one business domain (e.g., UserService, OrderService)
+- Separate concerns: [cmd/main.go](mdc:cmd/main.go) handles CLI, [cmd/commands/start.go](mdc:cmd/commands/start.go) handles server startup
+- Create dedicated files for each responsibility:
+  - `internal/service/` - Business logic implementation
+  - `internal/repository/` - Data access layer
+  - `internal/handler/` - gRPC handlers
+  - `internal/config/` - Configuration management
+
+## Open/Closed Principle (OCP)
+- Use interfaces for service contracts
+- Implement plugin architecture for extending functionality
+- Example: Create `UserServiceInterface` that can be extended without modifying existing code
+
+## Liskov Substitution Principle (LSP)
+- All implementations of an interface should be interchangeable
+- Mock implementations should behave consistently with real implementations
+- Database and in-memory repositories should implement the same interface
+
+## Interface Segregation Principle (ISP)
+- Create small, focused interfaces rather than large monolithic ones
+- Separate read and write operations: `UserReader`, `UserWriter`
+- Avoid forcing clients to depend on methods they don't use
+
+## Dependency Inversion Principle (DIP)
+- Depend on abstractions, not concretions
+- Inject dependencies through constructors
+- Use dependency injection container for complex applications
+- High-level modules should not depend on low-level modules
+
+## Implementation Guidelines
+
+### Service Layer Structure
+```go
+// Good: Interface-based design
+type UserService interface {
+    GetUser(ctx context.Context, id string) (*User, error)
+    CreateUser(ctx context.Context, user *User) error
+}
+
+type userService struct {
+    repo UserRepository
+    validator UserValidator
+    logger Logger
+}
+```
+
+### Repository Pattern
+```go
+type UserRepository interface {
+    FindByID(ctx context.Context, id string) (*User, error)
+    Save(ctx context.Context, user *User) error
+}
+```
+
+### Handler Layer
+```go
+type UserHandler struct {
+    service UserService
+}
+
+func (h *UserHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.GetUserResponse, error) {
+    // Delegate to service layer
+}
+```

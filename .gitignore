@@ -1,0 +1,188 @@
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+coverage.out
+coverage.html
+coverage.txt
+coverage.xml
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Build artifacts
+bin/
+build/
+dist/
+*.bin
+
+# IDE specific files
+.vscode/launch.json
+.vscode/temp.sql
+.idea/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log
+logs/
+log/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Configuration overrides
+config/local.yaml
+config/local.yml
+config/dev.yaml
+config/dev.yml
+config/production.yaml
+config/production.yml
+
+# Generated protobuf files (comment out if you want to track them)
+*.pb.go
+*_grpc.pb.go
+*.pb.gw.go
+
+# Documentation generated files
+docs/generated/
+docs/build/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Certificate files
+*.pem
+*.key
+*.crt
+*.p12
+certs/
+
+# Docker
+.dockerignore
+
+# Kubernetes
+*.kubeconfig
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+
+# Performance and profiling
+*.prof
+*.pprof
+cpu.prof
+mem.prof
+trace.out
+
+# Benchmark results
+benchmarks/
+*.bench
+
+# Cache directories
+.cache/
+cache/
+
+# Node modules (if any frontend code)
+node_modules/
+
+# Python (if any Python scripts)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+
+# Visual Studio Code
+.vscode/settings.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Vim
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+*.un~
+Session.vim
+.netrwhist
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Local development
+local/
+*.local
+
+# Secrets and keys
+secrets/
+*.secret
+api-keys/
+
+# Backup files
+*.bak
+*.backup
+*~

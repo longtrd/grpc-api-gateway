@@ -1,0 +1,131 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Design Patterns for gRPC Server
+
+## Repository Pattern
+- Separate data access logic from business logic
+- Create `internal/repository/` for all data operations
+- Use interfaces to allow switching between different storage backends
+
+```go
+type UserRepository interface {
+    Create(ctx context.Context, user *domain.User) error
+    GetByID(ctx context.Context, id string) (*domain.User, error)
+    Update(ctx context.Context, user *domain.User) error
+    Delete(ctx context.Context, id string) error
+}
+```
+
+## Factory Pattern
+- Use for creating different types of repositories or services
+- Useful for configuration-based service instantiation
+
+```go
+type ServiceFactory interface {
+    CreateUserService() UserService
+    CreateOrderService() OrderService
+}
+```
+
+## Strategy Pattern
+- Implement different validation strategies
+- Different authentication methods
+- Multiple storage backends
+
+```go
+type ValidationStrategy interface {
+    Validate(user *domain.User) error
+}
+```
+
+## Observer Pattern
+- Event-driven architecture for service communication
+- Useful for audit logging, notifications
+
+```go
+type EventPublisher interface {
+    Publish(event domain.Event) error
+}
+```
+
+## Decorator Pattern
+- Add cross-cutting concerns without modifying core logic
+- Logging, metrics, authentication, rate limiting
+
+```go
+type LoggingUserService struct {
+    UserService
+    logger Logger
+}
+```
+
+## Command Pattern
+- Encapsulate gRPC requests as commands
+- Useful for request validation and processing pipelines
+
+```go
+type Command interface {
+    Execute(ctx context.Context) error
+    Validate() error
+}
+```
+
+## Adapter Pattern
+- Convert between gRPC protobuf and domain models
+- Integration with external services
+
+```go
+type UserAdapter interface {
+    ToProto(user *domain.User) *pb.User
+    FromProto(pbUser *pb.User) *domain.User
+}
+```
+
+## Chain of Responsibility Pattern
+- Request processing pipelines
+- Middleware chains for authentication, validation, logging
+
+```go
+type Middleware interface {
+    Process(ctx context.Context, req interface{}) (interface{}, error)
+    SetNext(middleware Middleware)
+}
+```
+
+## Singleton Pattern
+- Configuration management
+- Database connections
+- Logger instances
+
+```go
+type Config struct {
+    Port string
+    Database DatabaseConfig
+}
+
+var once sync.Once
+var config *Config
+
+func GetConfig() *Config {
+    once.Do(func() {
+        config = loadConfig()
+    })
+    return config
+}
+```
+
+## Builder Pattern
+- Complex server configuration
+- gRPC server setup with multiple services
+
+```go
+type ServerBuilder interface {
+    WithPort(port string) ServerBuilder
+    WithService(service interface{}) ServerBuilder
+    WithInterceptor(interceptor grpc.UnaryServerInterceptor) ServerBuilder
+    Build() *grpc.Server
+}
+```

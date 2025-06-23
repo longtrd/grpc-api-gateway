@@ -1,0 +1,418 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Testing Patterns and Best Practices
+
+## Testing Strategy Overview
+This project implements a comprehensive testing framework following clean architecture principles, with 91%+ test coverage across all layers based on [internal/domain/user_test.go](mdc:gRPC-server/internal/domain/user_test.go) and [internal/usecase/user_test.go](mdc:gRPC-server/internal/usecase/user_test.go).
+
+## Testing Directory Structure
+```
+gRPC-server/
+├── internal/
+│   ├── domain/
+│   │   ├── user.go                    # [user.go](mdc:gRPC-server/internal/domain/user.go) - Domain entity
+│   │   ├── user_test.go              # [user_test.go](mdc:gRPC-server/internal/domain/user_test.go) - Domain tests (91.7% coverage)
+│   │   └── interfaces.go             # [interfaces.go](mdc:gRPC-server/internal/domain/interfaces.go) - Domain interfaces
+│   ├── usecase/
+│   │   ├── user.go                   # [user.go](mdc:gRPC-server/internal/usecase/user.go) - Use case implementation
+│   │   ├── user_test.go              # [user_test.go](mdc:gRPC-server/internal/usecase/user_test.go) - Use case tests (91.9% coverage)
+│   │   └── user_bench_test.go        # [user_bench_test.go](mdc:gRPC-server/internal/usecase/user_bench_test.go) - Performance benchmarks
+│   ├── mocks/                        # Generated and manual mocks
+│   │   ├── user_repository_mock.go   # [user_repository_mock.go](mdc:gRPC-server/internal/mocks/user_repository_mock.go) - Repository mock
+│   │   ├── user_validator_mock.go    # [user_validator_mock.go](mdc:gRPC-server/internal/mocks/user_validator_mock.go) - Validator mock
+│   │   ├── logger_mock.go            # [logger_mock.go](mdc:gRPC-server/internal/mocks/logger_mock.go) - Logger mock
+│   │   └── event_publisher_mock.go   # [event_publisher_mock.go](mdc:gRPC-server/internal/mocks/event_publisher_mock.go) - Event publisher mock
+│   └── testutil/
+│       └── helpers.go                # [helpers.go](mdc:gRPC-server/internal/testutil/helpers.go) - Test utilities and factories
+└── tests/
+    └── integration/
+        └── user_integration_test.go  # [user_integration_test.go](mdc:gRPC-server/tests/integration/user_integration_test.go) - Integration tests
+```
+
+## Domain Layer Testing Pattern
+
+### Table-Driven Tests
+Use table-driven tests for comprehensive validation coverage:
+
+```go
+func TestUser_Validate(t *testing.T) {
+    tests := []struct {
+        name    string
+        user    *User
+        wantErr bool
+        errType error
+    }{
+        {
+            name: "valid user",
+            user: &User{ID: "123", Name: "John Doe", Email: "john@example.com"},
+            wantErr: false,
+        },
+        {
+            name: "missing ID",
+            user: &User{Name: "John Doe", Email: "john@example.com"},
+            wantErr: true,
+            errType: ErrInvalidUserID,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            err := tt.user.Validate()
+            if tt.wantErr {
+                assert.Error(t, err)
+                if tt.errType != nil {
+                    assert.ErrorIs(t, err, tt.errType)
+                }
+            } else {
+                assert.NoError(t, err)
+            }
+        })
+    }
+}
+```
+
+### Domain Entity Testing
+Test business rules and validation logic in isolation:
+
+```go
+func TestUser_String(t *testing.T) {
+    user := &User{
+        ID:    "123",
+        Name:  "John Doe",
+        Email: "john@example.com",
+    }
+
+    expected := "User{ID: 123, Name: John Doe, Email: john@example.com}"
+    assert.Equal(t, expected, user.String())
+}
+```
+
+## Use Case Layer Testing Pattern
+
+### Mock-Based Testing
+Test use cases with mocked dependencies following the pattern from [internal/usecase/user_test.go](mdc:gRPC-server/internal/usecase/user_test.go):
+
+```go
+func TestUserUseCase_CreateUser(t *testing.T) {
+    mockRepo := mocks.NewMockUserRepository()
+    mockValidator := mocks.NewMockUserValidator()
+    mockLogger := mocks.NewMockLogger()
+    mockPublisher := mocks.NewMockEventPublisher()
+
+    useCase := NewUserUseCase(mockRepo, mockValidator, mockLogger, mockPublisher)
+
+    user := testutil.NewValidUser()
+
+    err := useCase.CreateUser(context.Background(), user)
+    assert.NoError(t, err)
+
+    // Verify interactions
+    assert.Equal(t, 1, mockValidator.ValidateCallCount())
+    assert.Equal(t, 1, mockRepo.CreateCallCount())
+    assert.Equal(t, 1, mockPublisher.PublishCallCount())
+}
+```
+
+### Error Scenario Testing
+Test all error paths and edge cases:
+
+```go
+func TestUserUseCase_CreateUser_ValidationError(t *testing.T) {
+    mockRepo := mocks.NewMockUserRepository()
+    mockValidator := mocks.NewMockUserValidator()
+    mockValidator.SetValidateError(domain.ErrInvalidUserEmail)
+
+    useCase := NewUserUseCase(mockRepo, mockValidator, nil, nil)
+
+    user := testutil.NewInvalidUser()
+
+    err := useCase.CreateUser(context.Background(), user)
+    assert.ErrorIs(t, err, domain.ErrInvalidUserEmail)
+
+    // Repository should not be called
+    assert.Equal(t, 0, mockRepo.CreateCallCount())
+}
+```
+
+## Mock Implementation Patterns
+
+### Thread-Safe Mocks
+Implement thread-safe mocks for concurrent testing based on [internal/mocks/user_repository_mock.go](mdc:gRPC-server/internal/mocks/user_repository_mock.go):
+
+```go
+type MockUserRepository struct {
+    mu             sync.RWMutex
+    users          map[string]*domain.User
+    createCalls    int
+    getByIDCalls   int
+    createError    error
+    getByIDError   error
+}
+
+func (m *MockUserRepository) Create(ctx context.Context, user *domain.User) error {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+
+    m.createCalls++
+
+    if m.createError != nil {
+        return m.createError
+    }
+
+    m.users[user.ID] = user
+    return nil
+}
+```
+
+### Configurable Mock Behavior
+Allow mocks to simulate different scenarios:
+
+```go
+func (m *MockUserRepository) SetCreateError(err error) {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    m.createError = err
+}
+
+func (m *MockUserRepository) CreateCallCount() int {
+    m.mu.RLock()
+    defer m.mu.RUnlock()
+    return m.createCalls
+}
+```
+
+## Test Utilities and Factories
+
+### Test Data Factories
+Create reusable test data factories in [internal/testutil/helpers.go](mdc:gRPC-server/internal/testutil/helpers.go):
+
+```go
+func NewValidUser() *domain.User {
+    return &domain.User{
+        ID:    "test-123",
+        Name:  "Test User",
+        Email: "test@example.com",
+    }
+}
+
+func NewUserWithID(id string) *domain.User {
+    user := NewValidUser()
+    user.ID = id
+    return user
+}
+
+func NewInvalidUser() *domain.User {
+    return &domain.User{
+        ID:    "",
+        Name:  "",
+        Email: "invalid-email",
+    }
+}
+```
+
+### Assertion Helpers
+Create custom assertion helpers for domain-specific validations:
+
+```go
+func AssertUserEqual(t *testing.T, expected, actual *domain.User) {
+    t.Helper()
+    assert.Equal(t, expected.ID, actual.ID)
+    assert.Equal(t, expected.Name, actual.Name)
+    assert.Equal(t, expected.Email, actual.Email)
+}
+
+func AssertErrorType(t *testing.T, expectedErr, actualErr error) {
+    t.Helper()
+    assert.Error(t, actualErr)
+    assert.ErrorIs(t, actualErr, expectedErr)
+}
+```
+
+## Integration Testing Patterns
+
+### End-to-End Workflow Testing
+Test complete workflows as shown in [tests/integration/user_integration_test.go](mdc:gRPC-server/tests/integration/user_integration_test.go):
+
+```go
+func TestUserIntegration_CompleteWorkflow(t *testing.T) {
+    repo := repository.NewMemoryUserRepository()
+    validator := validator.NewUserValidator()
+    logger := logger.NewNullLogger()
+    publisher := events.NewNullPublisher()
+
+    useCase := usecase.NewUserUseCase(repo, validator, logger, publisher)
+
+    // Test create
+    user := testutil.NewValidUser()
+    err := useCase.CreateUser(context.Background(), user)
+    assert.NoError(t, err)
+
+    // Test get
+    retrieved, err := useCase.GetUser(context.Background(), user.ID)
+    assert.NoError(t, err)
+    testutil.AssertUserEqual(t, user, retrieved)
+
+    // Test update
+    user.Name = "Updated Name"
+    err = useCase.UpdateUser(context.Background(), user)
+    assert.NoError(t, err)
+
+    // Test delete
+    err = useCase.DeleteUser(context.Background(), user.ID)
+    assert.NoError(t, err)
+}
+```
+
+### Concurrent Testing
+Test thread safety and concurrent operations:
+
+```go
+func TestUserIntegration_ConcurrentOperations(t *testing.T) {
+    repo := repository.NewMemoryUserRepository()
+    useCase := usecase.NewUserUseCase(repo, validator, logger, publisher)
+
+    const numGoroutines = 100
+    var wg sync.WaitGroup
+    errors := make(chan error, numGoroutines)
+
+    for i := 0; i < numGoroutines; i++ {
+        wg.Add(1)
+        go func(id int) {
+            defer wg.Done()
+            user := testutil.NewUserWithID(fmt.Sprintf("user-%d", id))
+            if err := useCase.CreateUser(context.Background(), user); err != nil {
+                errors <- err
+            }
+        }(i)
+    }
+
+    wg.Wait()
+    close(errors)
+
+    for err := range errors {
+        t.Errorf("Concurrent operation failed: %v", err)
+    }
+}
+```
+
+## Performance Testing
+
+### Benchmark Testing
+Implement benchmarks following [internal/usecase/user_bench_test.go](mdc:gRPC-server/internal/usecase/user_bench_test.go):
+
+```go
+func BenchmarkUserUseCase_CreateUser(b *testing.B) {
+    useCase := setupBenchmarkUseCase()
+    user := testutil.NewValidUser()
+
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        user.ID = fmt.Sprintf("user-%d", i)
+        err := useCase.CreateUser(context.Background(), user)
+        if err != nil {
+            b.Fatalf("CreateUser failed: %v", err)
+        }
+    }
+}
+
+func BenchmarkUserUseCase_GetUser(b *testing.B) {
+    useCase := setupBenchmarkUseCase()
+
+    // Pre-populate with test data
+    users := make([]*domain.User, 1000)
+    for i := 0; i < 1000; i++ {
+        user := testutil.NewUserWithID(fmt.Sprintf("user-%d", i))
+        useCase.CreateUser(context.Background(), user)
+        users[i] = user
+    }
+
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        userID := users[i%1000].ID
+        _, err := useCase.GetUser(context.Background(), userID)
+        if err != nil {
+            b.Fatalf("GetUser failed: %v", err)
+        }
+    }
+}
+```
+
+## Testing Commands and Coverage
+
+### Makefile Integration
+Use these testing targets:
+
+```bash
+# Unit tests by layer
+make test-domain          # Test domain layer only
+make test-usecase         # Test use case layer only
+make test-unit            # All unit tests
+
+# Integration and benchmarks
+make test-integration     # Integration tests only
+make test-bench          # Benchmark tests
+make test-coverage       # Generate coverage report
+
+# Development workflow
+make test-watch          # Watch mode for TDD
+make test-race           # Race condition detection
+```
+
+### Coverage Requirements
+- Domain Layer: 90%+ coverage
+- Use Case Layer: 90%+ coverage
+- Integration Tests: Critical paths covered
+- Error Scenarios: All error paths tested
+
+## Testing Best Practices
+
+### Arrange-Act-Assert Pattern
+Structure tests clearly:
+
+```go
+func TestUserUseCase_CreateUser_Success(t *testing.T) {
+    // Arrange
+    mockRepo := mocks.NewMockUserRepository()
+    useCase := NewUserUseCase(mockRepo, validator, logger, publisher)
+    user := testutil.NewValidUser()
+
+    // Act
+    err := useCase.CreateUser(context.Background(), user)
+
+    // Assert
+    assert.NoError(t, err)
+    assert.Equal(t, 1, mockRepo.CreateCallCount())
+}
+```
+
+### Test Isolation
+- Each test should be independent
+- Use fresh mocks for each test
+- Clean up resources after tests
+- No shared state between tests
+
+### Test Naming Convention
+- Use descriptive test names: `TestFunction_Scenario_ExpectedBehavior`
+- Group related tests with subtests
+- Use table-driven tests for multiple scenarios
+
+### Context and Timeouts
+Always test with proper context handling:
+
+```go
+func TestUserUseCase_CreateUser_ContextCancellation(t *testing.T) {
+    ctx, cancel := context.WithCancel(context.Background())
+    cancel() // Cancel immediately
+
+    useCase := setupTestUseCase()
+    user := testutil.NewValidUser()
+
+    err := useCase.CreateUser(ctx, user)
+    assert.ErrorIs(t, err, context.Canceled)
+}
+```
+
+This testing framework ensures high code quality, comprehensive coverage, and maintainable test suites following clean architecture principles.

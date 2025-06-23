@@ -1,0 +1,314 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Dependency Injection and Container Management
+
+## Container Pattern for Dependency Management
+Create a central container to manage all dependencies and integrate with [cmd/commands/start.go](mdc:cmd/commands/start.go):
+
+```go
+// internal/config/container.go
+type Container struct {
+    // Configuration
+    Config *Config
+    Logger *log.Logger
+    
+    // Repositories
+    UserRepository domain.UserRepository
+    
+    // Use Cases
+    UserUseCase *usecase.UserUseCase
+    
+    // Handlers
+    UserHandler *handler.UserHandler
+    
+    // Adapters
+    UserAdapter *adapter.UserAdapter
+    
+    // External services
+    DatabaseClient DatabaseClient
+}
+
+func NewContainer(cfg *Config) (*Container, error) {
+    container := &Container{
+        Config: cfg,
+        Logger: log.New(os.Stdout, "gRPC-server: ", log.LstdFlags),
+    }
+    
+    if err := container.buildDependencies(); err != nil {
+        return nil, fmt.Errorf("failed to build dependencies: %w", err)
+    }
+    
+    return container, nil
+}
+```
+
+## Dependency Building with Factory Methods
+```go
+func (c *Container) buildDependencies() error {
+    // Build repositories
+    if err := c.buildRepositories(); err != nil {
+        return err
+    }
+    
+    // Build use cases
+    if err := c.buildUseCases(); err != nil {
+        return err
+    }
+    
+    // Build handlers
+    if err := c.buildHandlers(); err != nil {
+        return err
+    }
+    
+    return nil
+}
+
+func (c *Container) buildRepositories() error {
+    switch c.Config.Database.Type {
+    case "memory":
+        c.UserRepository = repository.NewMemoryUserRepository()
+    case "postgres":
+        db, err := sql.Open("postgres", c.Config.Database.URL)
+        if err != nil {
+            return err
+        }
+        c.UserRepository = repository.NewPostgresUserRepository(db)
+    default:
+        return fmt.Errorf("unsupported database type: %s", c.Config.Database.Type)
+    }
+    return nil
+}
+
+func (c *Container) buildUseCases() error {
+    validator := validator.NewUserValidator()
+    c.UserUseCase = usecase.NewUserUseCase(c.UserRepository, validator, c.Logger)
+    return nil
+}
+
+func (c *Container) buildHandlers() error {
+    c.UserAdapter = adapter.NewUserAdapter()
+    c.UserHandler = handler.NewUserHandler(c.UserUseCase, c.UserAdapter, c.Logger)
+    return nil
+}
+```
+
+## Interface-Based Dependency Injection
+Define clear interfaces for all dependencies:
+
+```go
+// internal/domain/interfaces.go
+type UserRepository interface {
+    Create(ctx context.Context, user *User) error
+    GetByID(ctx context.Context, id string) (*User, error)
+    Update(ctx context.Context, user *User) error
+    Delete(ctx context.Context, id string) error
+}
+
+type UserValidator interface {
+    Validate(user *User) error
+}
+
+type Logger interface {
+    Info(msg string, fields ...interface{})
+    Error(msg string, fields ...interface{})
+    Debug(msg string, fields ...interface{})
+}
+
+type EventPublisher interface {
+    Publish(ctx context.Context, event Event) error
+}
+```
+
+## Constructor Injection Pattern
+Use constructor injection for explicit dependencies:
+
+```go
+// internal/usecase/user.go
+type UserUseCase struct {
+    repo      domain.UserRepository
+    validator domain.UserValidator
+    logger    domain.Logger
+    publisher domain.EventPublisher
+}
+
+func NewUserUseCase(
+    repo domain.UserRepository,
+    validator domain.UserValidator,
+    logger domain.Logger,
+    publisher domain.EventPublisher,
+) *UserUseCase {
+    return &UserUseCase{
+        repo:      repo,
+        validator: validator,
+        logger:    logger,
+        publisher: publisher,
+    }
+}
+```
+
+## Configuration-Driven Dependency Selection
+```go
+// internal/config/config.go
+type Config struct {
+    Server   ServerConfig   `yaml:"server"`
+    Database DatabaseConfig `yaml:"database"`
+    Logger   LoggerConfig   `yaml:"logger"`
+    Features FeatureConfig  `yaml:"features"`
+}
+
+type DatabaseConfig struct {
+    Type string `yaml:"type"` // memory, postgres, mysql
+    URL  string `yaml:"url"`
+}
+
+type FeatureConfig struct {
+    EnableMetrics bool `yaml:"enable_metrics"`
+    EnableTracing bool `yaml:"enable_tracing"`
+    EnableAuth    bool `yaml:"enable_auth"`
+}
+
+func Load() *Config {
+    // Load from environment variables, files, etc.
+}
+```
+
+## Optional Dependencies with Feature Flags
+```go
+func (c *Container) buildOptionalDependencies() error {
+    if c.Config.Features.EnableMetrics {
+        c.MetricsService = metrics.NewPrometheusService()
+    }
+    
+    if c.Config.Features.EnableTracing {
+        tracer, err := tracing.NewJaegerTracer(c.Config.Tracing)
+        if err != nil {
+            return err
+        }
+        c.TracingService = tracer
+    }
+    
+    if c.Config.Features.EnableAuth {
+        c.AuthService = auth.NewJWTService(c.Config.Auth.Secret)
+    }
+    
+    return nil
+}
+```
+
+## Integration with Cobra Start Command
+Update [cmd/commands/start.go](mdc:cmd/commands/start.go) to use the container:
+
+```go
+func runStart(cmd *cobra.Command, args []string) {
+    // Load configuration
+    cfg := config.Load()
+    
+    // Build dependency container
+    container, err := config.NewContainer(cfg)
+    if err != nil {
+        log.Fatalf("Failed to build container: %v", err)
+    }
+    
+    // Create and configure gRPC server
+    server := createGRPCServer(container)
+    
+    // Register services
+    pb.RegisterUserServiceServer(server, container.UserHandler)
+    
+    // Optional registrations based on features
+    if container.Config.Features.EnableHealthCheck {
+        registerHealthCheck(server, container)
+    }
+    
+    // Start server
+    lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+    if err != nil {
+        log.Fatalf("Failed to listen: %v", err)
+    }
+    
+    setupGracefulShutdown(server, container.Logger)
+    
+    container.Logger.Printf("Starting gRPC server on port %s", port)
+    if err := server.Serve(lis); err != nil {
+        log.Fatalf("Failed to serve: %v", err)
+    }
+}
+```
+
+## Testing with Dependency Injection
+Create test containers for easier testing:
+
+```go
+// internal/config/test_container.go
+func NewTestContainer() *Container {
+    return &Container{
+        Config:         &Config{},
+        Logger:         log.New(io.Discard, "", 0), // Silent logger for tests
+        UserRepository: repository.NewMockUserRepository(),
+        UserUseCase:    nil, // Will be built
+        UserHandler:    nil, // Will be built
+        UserAdapter:    adapter.NewUserAdapter(),
+    }
+}
+
+// Test example
+func TestUserHandler_CreateUser(t *testing.T) {
+    container := config.NewTestContainer()
+    container.buildUseCases()
+    container.buildHandlers()
+    
+    // Test with real dependencies but mocked repository
+    req := &pb.CreateUserRequest{
+        User: &pb.User{Id: "1", Name: "Test", Email: "test@example.com"},
+    }
+    
+    resp, err := container.UserHandler.CreateUser(context.Background(), req)
+    assert.NoError(t, err)
+    assert.NotNil(t, resp)
+}
+```
+
+## Graceful Resource Cleanup
+```go
+func (c *Container) Cleanup() error {
+    var errors []error
+    
+    if closer, ok := c.DatabaseClient.(io.Closer); ok {
+        if err := closer.Close(); err != nil {
+            errors = append(errors, err)
+        }
+    }
+    
+    if c.TracingService != nil {
+        if err := c.TracingService.Close(); err != nil {
+            errors = append(errors, err)
+        }
+    }
+    
+    if len(errors) > 0 {
+        return fmt.Errorf("cleanup errors: %v", errors)
+    }
+    
+    return nil
+}
+```
+
+## Lazy Loading for Heavy Dependencies
+```go
+type Container struct {
+    // ... other fields
+    
+    databaseClient   DatabaseClient
+    databaseClientOnce sync.Once
+}
+
+func (c *Container) GetDatabaseClient() DatabaseClient {
+    c.databaseClientOnce.Do(func() {
+        c.databaseClient = database.NewClient(c.Config.Database)
+    })
+    return c.databaseClient
+}
+```

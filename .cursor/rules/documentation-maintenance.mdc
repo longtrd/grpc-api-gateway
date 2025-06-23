@@ -1,0 +1,209 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Documentation and Cursor Rules Maintenance
+
+## Core Principle
+**ALWAYS update documentation and Cursor Rules when adding new code, features, or changing project structure.**
+
+## When to Update README.md
+
+### New Features or Components
+When adding new code, immediately update [README.md](mdc:README.md) in these sections:
+
+1. **Project Structure** - Add new directories, files, or modules
+2. **Features** - Document new capabilities and functionality
+3. **API Documentation** - Update endpoint descriptions and examples
+4. **Testing** - Add new test commands, coverage metrics, or testing patterns
+5. **Development Setup** - Include new dependencies, tools, or setup steps
+6. **Commands** - Document new Makefile targets or CLI commands
+
+### Code Changes That Require README Updates
+- New gRPC services in [proto/](mdc:gRPC-server/proto)
+- New layers in clean architecture (domain, usecase, handler, repository)
+- New testing infrastructure or patterns
+- New build targets or deployment configurations
+- New development tools or workflows
+- Breaking changes to existing APIs
+
+### Example README Update Pattern
+```markdown
+## Recent Updates
+- ✅ Added UserService with CRUD operations
+- ✅ Implemented clean architecture with 91%+ test coverage
+- ✅ Added comprehensive testing framework with mocks
+- ✅ Created development automation with 20+ Makefile targets
+```
+
+## When to Update Cursor Rules
+
+### New Architectural Patterns
+Update [.cursor/rules/](mdc:.cursor/rules) when introducing:
+
+1. **New Design Patterns** - Add to [design-patterns.mdc](mdc:.cursor/rules/design-patterns.mdc)
+2. **New Testing Patterns** - Update [testing-patterns.mdc](mdc:.cursor/rules/testing-patterns.mdc)
+3. **New Project Structure** - Modify [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc)
+4. **New gRPC Practices** - Enhance [grpc-best-practices.mdc](mdc:.cursor/rules/grpc-best-practices.mdc)
+5. **New DI Patterns** - Update [dependency-injection.mdc](mdc:.cursor/rules/dependency-injection.mdc)
+
+### Code Changes That Require Rule Updates
+- New layers or directories in the project structure
+- New testing frameworks, tools, or patterns
+- New development workflows or conventions
+- New error handling or validation patterns
+- New database or infrastructure integrations
+
+## File Reference Updates
+
+### Update File References in Rules
+When adding new files, update Cursor Rules with proper references:
+
+```markdown
+# Before
+├── internal/domain/
+│   └── user.go              # User entity
+
+# After
+├── internal/domain/
+│   ├── user.go              # [user.go](mdc:gRPC-server/internal/domain/user.go) - User entity
+│   ├── user_test.go         # [user_test.go](mdc:gRPC-server/internal/domain/user_test.go) - Domain tests
+│   └── product.go           # [product.go](mdc:gRPC-server/internal/domain/product.go) - Product entity
+```
+
+### Maintain Accurate File Paths
+- Use relative paths from workspace root
+- Include file extensions
+- Update paths when files are moved or renamed
+- Remove references to deleted files
+
+## Documentation Consistency Checklist
+
+### Before Committing New Code
+- [ ] Updated README.md with new features/changes
+- [ ] Updated relevant Cursor Rules
+- [ ] Added file references using `mdc:` format
+- [ ] Updated project structure diagrams
+- [ ] Documented new commands or workflows
+- [ ] Updated test coverage metrics
+- [ ] Added examples for new functionality
+
+### Documentation Quality Standards
+1. **Accuracy** - All file references must be valid
+2. **Completeness** - Cover all new functionality
+3. **Clarity** - Use clear, descriptive language
+4. **Examples** - Provide code examples for new patterns
+5. **Consistency** - Follow established documentation patterns
+
+## Automated Maintenance
+
+### Pre-Commit Hooks
+Ensure [scripts/setup-git-hooks.sh](mdc:scripts/setup-git-hooks.sh) includes documentation checks:
+
+```bash
+# Check for outdated documentation
+if ! grep -q "new-feature" README.md; then
+    echo "ERROR: README.md not updated for new features"
+    exit 1
+fi
+```
+
+### Makefile Targets
+Use these commands from [Makefile](mdc:Makefile) for documentation maintenance:
+
+```bash
+make docs-check          # Verify documentation consistency
+make docs-update         # Update auto-generated documentation
+make docs-validate       # Validate all file references
+```
+
+## Specific Update Scenarios
+
+### Adding New gRPC Service
+1. Update [proto/](mdc:gRPC-server/proto) with new .proto file
+2. Add service documentation to README.md
+3. Update [grpc-best-practices.mdc](mdc:.cursor/rules/grpc-best-practices.mdc) with service patterns
+4. Add file references to [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc)
+
+### Adding New Testing Layer
+1. Create tests following [testing-patterns.mdc](mdc:.cursor/rules/testing-patterns.mdc)
+2. Update coverage metrics in README.md
+3. Add new test commands to README.md
+4. Update [testing-patterns.mdc](mdc:.cursor/rules/testing-patterns.mdc) with new patterns
+
+### Adding New Domain Entity
+1. Create entity in [internal/domain/](mdc:gRPC-server/internal/domain)
+2. Add corresponding tests, mocks, and use cases
+3. Update [clean-architecture.mdc](mdc:.cursor/rules/clean-architecture.mdc) with examples
+4. Update project structure in all relevant rules
+
+### Adding New Infrastructure
+1. Add infrastructure code to [internal/infrastructure/](mdc:gRPC-server/internal)
+2. Update [dependency-injection.mdc](mdc:.cursor/rules/dependency-injection.mdc) with DI patterns
+3. Add setup instructions to README.md
+4. Update deployment documentation
+
+## Documentation Review Process
+
+### Self-Review Checklist
+Before marking documentation complete:
+
+1. **File References** - All `mdc:` links are valid
+2. **Code Examples** - All code snippets are accurate and tested
+3. **Structure Alignment** - Documentation matches actual code structure
+4. **Command Validation** - All documented commands work correctly
+5. **Coverage Metrics** - Test coverage numbers are current
+
+### Peer Review Focus
+When reviewing documentation changes:
+
+1. **Accuracy** - Verify all technical details
+2. **Completeness** - Ensure all new functionality is documented
+3. **Clarity** - Check for clear, understandable explanations
+4. **Consistency** - Maintain consistent formatting and style
+
+## Anti-Patterns to Avoid
+
+### Documentation Debt
+- ❌ Adding code without updating documentation
+- ❌ Leaving TODO comments in documentation
+- ❌ Broken file references or outdated examples
+- ❌ Inconsistent terminology across documents
+
+### Rule Violations
+- ❌ Creating new patterns without documenting them
+- ❌ Changing project structure without updating rules
+- ❌ Adding new tools without usage documentation
+- ❌ Removing functionality without cleaning up references
+
+## Success Metrics
+
+### Documentation Quality Indicators
+- ✅ All file references are valid and accessible
+- ✅ Code examples compile and run successfully
+- ✅ Test coverage metrics are current and accurate
+- ✅ New developers can follow setup instructions successfully
+- ✅ All documented commands execute without errors
+
+### Maintenance Efficiency
+- ✅ Documentation updates happen simultaneously with code changes
+- ✅ Cursor Rules provide accurate guidance for new development
+- ✅ README.md serves as reliable project overview
+- ✅ Development workflows are fully documented and automated
+
+## Tools and Automation
+
+### Recommended Tools
+- **Link Checkers** - Validate all file references
+- **Documentation Generators** - Auto-generate API docs from code
+- **Coverage Reporters** - Automatically update coverage metrics
+- **Pre-commit Hooks** - Enforce documentation standards
+
+### Integration with Development Workflow
+- Documentation updates are part of the definition of done
+- CI/CD pipeline validates documentation consistency
+- Automated tools detect outdated documentation
+- Regular documentation reviews are scheduled
+
+Remember: **Code without documentation is incomplete. Documentation without accuracy is misleading. Keep both in perfect sync.**

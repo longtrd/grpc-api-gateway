@@ -1,0 +1,235 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Project Structure and Development Guidelines
+
+## High-Level Architecture Overview
+This gRPC server follows Clean Architecture principles with SOLID design patterns, starting from [cmd/main.go](mdc:cmd/main.go) and [cmd/commands/start.go](mdc:cmd/commands/start.go).
+
+## Recommended Directory Structure
+```
+gRPC-server/
+├── cmd/                        # Application entry points
+│   ├── main.go                 # [main.go](mdc:gRPC-server/cmd/main.go) - CLI entry point
+│   └── commands/               # Cobra commands
+│       ├── root.go             # [root.go](mdc:gRPC-server/cmd/commands/root.go) - Root command
+│       └── start.go            # [start.go](mdc:gRPC-server/cmd/commands/start.go) - Server start command
+├── internal/                   # Private application code
+│   ├── domain/                 # Business entities and interfaces (Core)
+│   │   ├── user.go            # [user.go](mdc:gRPC-server/internal/domain/user.go) - User entity and business rules
+│   │   ├── user_test.go       # [user_test.go](mdc:gRPC-server/internal/domain/user_test.go) - Domain tests (91.7% coverage)
+│   │   ├── interfaces.go      # [interfaces.go](mdc:gRPC-server/internal/domain/interfaces.go) - Repository and service interfaces
+│   │   └── errors.go          # Domain-specific errors
+│   ├── usecase/               # Business logic / Application services
+│   │   ├── user.go            # [user.go](mdc:gRPC-server/internal/usecase/user.go) - User business operations
+│   │   ├── user_test.go       # [user_test.go](mdc:gRPC-server/internal/usecase/user_test.go) - Use case tests (91.9% coverage)
+│   │   ├── user_bench_test.go # [user_bench_test.go](mdc:gRPC-server/internal/usecase/user_bench_test.go) - Performance benchmarks
+│   │   └── interfaces.go      # UseCase interfaces
+│   ├── handler/               # gRPC handlers (Interface adapters)
+│   │   ├── user_handler.go    # gRPC UserService implementation
+│   │   └── middleware.go      # gRPC interceptors
+│   ├── repository/            # Data access implementations
+│   │   ├── memory/            # In-memory implementations
+│   │   ├── postgres/          # PostgreSQL implementations
+│   │   └── interfaces.go      # Repository interfaces
+│   ├── adapter/               # Data transformation
+│   │   └── user_adapter.go    # Proto ↔ Domain conversion
+│   ├── infrastructure/        # External service clients
+│   │   ├── database/          # Database connections
+│   │   ├── messaging/         # Message queues
+│   │   └── external/          # Third-party APIs
+│   ├── mocks/                 # Test mocks and stubs
+│   │   ├── user_repository_mock.go   # [user_repository_mock.go](mdc:gRPC-server/internal/mocks/user_repository_mock.go) - Repository mock
+│   │   ├── user_validator_mock.go    # [user_validator_mock.go](mdc:gRPC-server/internal/mocks/user_validator_mock.go) - Validator mock
+│   │   ├── logger_mock.go            # [logger_mock.go](mdc:gRPC-server/internal/mocks/logger_mock.go) - Logger mock
+│   │   └── event_publisher_mock.go   # [event_publisher_mock.go](mdc:gRPC-server/internal/mocks/event_publisher_mock.go) - Event publisher mock
+│   ├── testutil/              # Test utilities and helpers
+│   │   └── helpers.go         # [helpers.go](mdc:gRPC-server/internal/testutil/helpers.go) - Test factories and assertions
+│   └── config/                # Configuration and DI container
+│       ├── config.go          # Configuration structs
+│       ├── container.go       # Dependency injection container
+│       └── test_container.go  # Test-specific container
+├── pkg/                       # Public libraries (reusable)
+│   ├── logger/                # Logging utilities
+│   ├── validator/             # Validation utilities
+│   └── errors/                # Error handling utilities
+├── proto/                     # Protocol buffer definitions
+│   └── user.proto             # [user.proto](mdc:gRPC-server/proto/user.proto) - User service definition
+├── tests/                     # Integration and e2e tests
+│   └── integration/
+│       └── user_integration_test.go  # [user_integration_test.go](mdc:gRPC-server/tests/integration/user_integration_test.go) - Integration tests
+├── scripts/                   # Build and deployment scripts
+└── deployments/               # Docker, k8s configurations
+```
+
+## Development Workflow
+
+### 1. Define Domain (Start Here)
+```go
+// internal/domain/user.go
+type User struct {
+    ID    string
+    Name  string
+    Email string
+}
+
+// Domain-specific errors
+var (
+    ErrUserNotFound      = errors.New("user not found")
+    ErrUserAlreadyExists = errors.New("user already exists")
+    ErrInvalidEmail      = errors.New("invalid email format")
+)
+```
+
+### 2. Define Repository Interface
+```go
+// internal/domain/interfaces.go
+type UserRepository interface {
+    Create(ctx context.Context, user *User) error
+    GetByID(ctx context.Context, id string) (*User, error)
+    Update(ctx context.Context, user *User) error
+    Delete(ctx context.Context, id string) error
+}
+```
+
+### 3. Implement Use Case
+```go
+// internal/usecase/user.go
+type UserUseCase struct {
+    repo domain.UserRepository
+    validator domain.UserValidator
+}
+
+func (uc *UserUseCase) CreateUser(ctx context.Context, user *domain.User) error {
+    // Business logic here
+}
+```
+
+### 4. Implement Repository
+```go
+// internal/repository/memory/user_repository.go
+type MemoryUserRepository struct {
+    users map[string]*domain.User
+    mutex sync.RWMutex
+}
+```
+
+### 5. Create gRPC Handler
+```go
+// internal/handler/user_handler.go
+type UserHandler struct {
+    usecase domain.UserUseCase
+    adapter UserAdapter
+}
+
+func (h *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.CreateUserResponse, error) {
+    // Convert proto to domain, call usecase, convert back
+}
+```
+
+### 6. Wire Dependencies in Container
+```go
+// internal/config/container.go
+func (c *Container) buildDependencies() error {
+    c.UserRepository = repository.NewMemoryUserRepository()
+    c.UserUseCase = usecase.NewUserUseCase(c.UserRepository, validator)
+    c.UserHandler = handler.NewUserHandler(c.UserUseCase, adapter)
+    return nil
+}
+```
+
+## Key Principles to Follow
+
+### SOLID Principles
+- **S**ingle Responsibility: Each package/struct has one reason to change
+- **O**pen/Closed: Extend behavior through interfaces, not modification
+- **L**iskov Substitution: Implementations are interchangeable
+- **I**nterface Segregation: Small, focused interfaces
+- **D**ependency Inversion: Depend on abstractions, not concretions
+
+### Clean Architecture Rules
+- **Dependency Rule**: Source code dependencies point inward only
+- **Entities**: Business rules that are least likely to change
+- **Use Cases**: Application-specific business rules
+- **Interface Adapters**: Convert data between use cases and external agencies
+- **Frameworks & Drivers**: Tools like gRPC, databases, web frameworks
+
+### Error Handling Strategy
+- Domain errors in `internal/domain/errors.go`
+- Map domain errors to gRPC status codes in handlers
+- Use structured logging for debugging
+- Implement circuit breakers for external dependencies
+
+### Testing Strategy
+- **Domain Layer**: 91.7% test coverage with comprehensive validation testing
+- **Use Case Layer**: 91.9% test coverage with mock-based testing
+- **Integration Tests**: End-to-end workflow testing with concurrent operations
+- **Performance Tests**: Benchmark testing for critical operations
+- **Mock Infrastructure**: Thread-safe mocks with configurable behavior
+- **Test Utilities**: Factories, helpers, and assertion utilities
+- **Testing Patterns**: Table-driven tests, Arrange-Act-Assert pattern
+
+## Commands and Usage
+
+### Start the Server
+Based on [cmd/commands/start.go](mdc:cmd/commands/start.go):
+```bash
+# Default port (50051)
+go run cmd/main.go start
+
+# Custom port
+go run cmd/main.go start --port 8080
+```
+
+### Generate Proto Code
+```bash
+protoc --go_out=. --go-grpc_out=. proto/*.proto
+```
+
+### Run Tests
+```bash
+# Unit tests by layer
+make test-domain          # Test domain layer only (91.7% coverage)
+make test-usecase         # Test use case layer only (91.9% coverage)
+make test-unit            # All unit tests
+
+# Integration and benchmarks
+make test-integration     # Integration tests only
+make test-bench          # Benchmark tests
+make test-coverage       # Generate HTML coverage report
+
+# Development workflow
+make test-watch          # Watch mode for TDD
+make test-race           # Race condition detection
+make test-all            # Complete test suite
+
+# Alternative direct commands
+go test ./internal/domain/...          # Domain tests
+go test ./internal/usecase/...         # Use case tests
+go test ./tests/integration/...        # Integration tests
+go test -bench=. ./internal/usecase/   # Benchmarks
+```
+
+## Configuration Management
+- Use environment variables for deployment-specific config
+- YAML files for complex configuration
+- Validate configuration at startup
+- Support multiple environments (dev, staging, prod)
+
+## Monitoring and Observability
+- Structured logging with correlation IDs
+- Prometheus metrics for key business metrics
+- Distributed tracing with OpenTelemetry
+- Health checks for readiness and liveness probes
+- gRPC reflection for development
+
+## Security Considerations
+- Input validation at handler level
+- Authentication and authorization middleware
+- TLS for production deployments
+- Rate limiting and request timeouts
+- Audit logging for sensitive operations
+
+This structure ensures maintainable, testable, and scalable gRPC services following industry best practices.

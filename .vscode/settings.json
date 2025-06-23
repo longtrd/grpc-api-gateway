@@ -1,0 +1,126 @@
+{
+  "go.useLanguageServer": true,
+  "go.lintTool": "golangci-lint",
+  "go.lintFlags": [
+    "--fast"
+  ],
+  "go.formatTool": "goimports",
+  "go.formatFlags": [
+    "-local",
+    "github.com/longtrd/grpc-api-gateway"
+  ],
+  "go.testFlags": [
+    "-race",
+    "-cover"
+  ],
+  "go.coverOnSave": true,
+  "go.coverageDecorator": {
+    "type": "gutter",
+    "coveredHighlightColor": "rgba(64,128,64,0.5)",
+    "uncoveredHighlightColor": "rgba(128,64,64,0.25)",
+    "coveredBorderColor": "rgba(64,128,64,1)",
+    "uncoveredBorderColor": "rgba(128,64,64,1)"
+  },
+  "go.autocompleteUnimportedPackages": true,
+  "go.gocodePackageLookupMode": "go",
+  "go.inferGopath": false,
+  "go.useCodeSnippetsOnFunctionSuggest": true,
+  "go.vetOnSave": "package",
+  "go.buildOnSave": "package",
+  "go.lintOnSave": "package",
+  "go.installDependenciesWhenBuilding": true,
+  "go.showLog": true,
+  "go.trace.server": "verbose",
+  "go.toolsManagement.checkForUpdates": "local",
+  "editor.formatOnSave": true,
+  "editor.formatOnType": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true,
+    "source.fixAll": true
+  },
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "editor.rulers": [
+    80,
+    100,
+    120
+  ],
+  "editor.tabSize": 4,
+  "editor.insertSpaces": false,
+  "editor.detectIndentation": false,
+  "[go]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": false,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    }
+  },
+  "[yaml]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "[json]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "[markdown]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.wordWrap": "on"
+  },
+  "[proto]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "protoc": {
+    "compile_on_save": false,
+    "options": [
+      "--go_out=.",
+      "--go-grpc_out=."
+    ]
+  },
+  "files.associations": {
+    "*.proto": "proto"
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/vendor": true,
+    "**/*.pb.go": true,
+    "coverage.out": true,
+    "coverage.html": true
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/vendor": true
+  },
+  "go.toolsEnvVars": {
+    "GOPROXY": "https://proxy.golang.org,direct",
+    "GOSUMDB": "sum.golang.org"
+  },
+  "go.buildFlags": [
+    "-tags=integration"
+  ],
+  "go.testEnvVars": {
+    "GO_TEST_TIMEOUT": "30s"
+  },
+  "gopls": {
+    "usePlaceholders": true,
+    "completeUnimported": true,
+    "watchFileChanges": true,
+    "deepCompletion": true,
+    "fuzzyMatching": true,
+    "staticcheck": true,
+    "analyses": {
+      "unusedparams": true,
+      "shadow": true,
+      "fieldalignment": true
+    }
+  }
+}
