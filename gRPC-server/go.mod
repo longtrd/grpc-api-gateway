@@ -1,6 +1,6 @@
 module github.com/longtrd/grpc-api-gateway/gRPC-server
 
-go 1.21.0
+go 1.24.2
 
 require (
 	github.com/spf13/cobra v1.9.1
