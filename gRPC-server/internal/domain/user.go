@@ -21,6 +21,11 @@ var (
 	ErrInvalidEmail      = errors.New("invalid email format")
 	ErrInvalidInput      = errors.New("invalid input")
 	ErrUnauthorized      = errors.New("unauthorized")
+
+	// Validation errors
+	ErrInvalidUserID    = errors.New("invalid user ID")
+	ErrInvalidUserName  = errors.New("invalid user name")
+	ErrInvalidUserEmail = errors.New("invalid user email")
 )
 
 // emailRegex is a simple regex for email validation

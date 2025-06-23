@@ -151,6 +151,23 @@ func (m *MockUserRepository) List(ctx context.Context, limit, offset int) ([]*do
 	return users, nil
 }
 
+// Count returns the total number of users
+func (m *MockUserRepository) Count(ctx context.Context) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return len(m.users), nil
+}
+
+// Clear removes all users (useful for testing)
+func (m *MockUserRepository) Clear(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.users = make(map[string]*domain.User)
+	return nil
+}
+
 // Reset resets the mock state
 func (m *MockUserRepository) Reset() {
 	m.mu.Lock()

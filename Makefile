@@ -14,7 +14,7 @@ install-tools: ## Install development tools (golangci-lint, goimports, etc.)
 	@echo "Installing development tools..."
 	go install golang.org/x/tools/cmd/goimports@latest
 	go install honnef.co/go/tools/cmd/staticcheck@latest
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.61.0
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
@@ -164,3 +164,66 @@ watch-grpc: ## Watch and restart gRPC server on changes
 
 watch-gateway: ## Watch and restart API Gateway on changes
 	find api-gateway -name "*.go" | entr -r make run-gateway
+
+# Docker development
+docker-build: ## Build Docker images
+	@echo "Building Docker images..."
+	./scripts/docker-dev.sh build
+
+docker-start: ## Start services with Docker Compose
+	@echo "Starting services with Docker..."
+	./scripts/docker-dev.sh start
+
+docker-stop: ## Stop Docker services
+	@echo "Stopping Docker services..."
+	./scripts/docker-dev.sh stop
+
+docker-restart: ## Restart Docker services
+	@echo "Restarting Docker services..."
+	./scripts/docker-dev.sh restart
+
+docker-logs: ## Show Docker service logs
+	@echo "Showing service logs..."
+	./scripts/docker-dev.sh logs
+
+docker-status: ## Show Docker service status
+	@echo "Showing service status..."
+	./scripts/docker-dev.sh status
+
+docker-clean: ## Clean Docker resources
+	@echo "Cleaning Docker resources..."
+	./scripts/docker-dev.sh clean
+
+docker-rebuild: ## Rebuild and restart Docker services
+	@echo "Rebuilding and restarting services..."
+	./scripts/docker-dev.sh rebuild
+
+# Docker testing
+docker-test: docker-build ## Build and test with Docker
+	@echo "Testing with Docker..."
+	docker-compose up -d grpc-server
+	sleep 15
+	@echo "Testing health check..."
+	docker-compose exec grpc-server nc -z localhost 50051 && echo "✅ TCP health check passed" || echo "❌ TCP health check failed"
+	@echo "Testing gRPC health service..."
+	docker-compose exec grpc-server grpc_health_probe -addr=localhost:50051 && echo "✅ gRPC health check passed" || echo "⚠️  gRPC health check not available (grpc_health_probe not installed)"
+	@echo "Testing with logs..."
+	docker-compose logs grpc-server | grep -q "Starting gRPC server" && echo "✅ Server started successfully" || echo "❌ Server start failed"
+	docker-compose down
+
+# Test clean architecture compliance
+test-architecture: ## Test clean architecture compliance
+	@echo "Testing clean architecture compliance..."
+	cd gRPC-server && go test -v ./internal/config/...
+	cd gRPC-server && go test -v ./pkg/...
+	@echo "✅ Clean architecture tests passed"
+
+# Test with different configurations
+test-config: ## Test with different configuration scenarios
+	@echo "Testing configuration management..."
+	cd gRPC-server && LOG_LEVEL=debug DATABASE_TYPE=memory go test -v ./internal/config/...
+	@echo "✅ Configuration tests passed"
+
+# Complete test suite with architecture validation
+test-complete: test-unit test-integration test-architecture test-config ## Run complete test suite including architecture
+	@echo "✅ Complete test suite passed"

@@ -29,7 +29,7 @@ gRPC-server/
 │   │   └── interfaces.go      # UseCase interfaces
 │   ├── handler/               # gRPC handlers (Interface adapters)
 │   │   ├── user_handler.go    # gRPC UserService implementation
-│   │   └── middleware.go      # gRPC interceptors
+│   │   └── middleware.go      # [middleware.go](mdc:gRPC-server/internal/handler/middleware.go) - gRPC interceptors (logging, recovery, validation)
 │   ├── repository/            # Data access implementations
 │   │   ├── memory/            # In-memory implementations
 │   │   ├── postgres/          # PostgreSQL implementations
@@ -48,20 +48,37 @@ gRPC-server/
 │   ├── testutil/              # Test utilities and helpers
 │   │   └── helpers.go         # [helpers.go](mdc:gRPC-server/internal/testutil/helpers.go) - Test factories and assertions
 │   └── config/                # Configuration and DI container
-│       ├── config.go          # Configuration structs
-│       ├── container.go       # Dependency injection container
-│       └── test_container.go  # Test-specific container
+│       ├── config.go          # [config.go](mdc:gRPC-server/internal/config/config.go) - Environment-based configuration
+│       └── container.go       # [container.go](mdc:gRPC-server/internal/config/container.go) - Dependency injection container
 ├── pkg/                       # Public libraries (reusable)
-│   ├── logger/                # Logging utilities
-│   ├── validator/             # Validation utilities
+│   ├── logger/                # Structured logging implementation
+│   │   └── logger.go          # [logger.go](mdc:gRPC-server/pkg/logger/logger.go) - JSON/text logging with levels
+│   ├── validator/             # Domain validation utilities
+│   │   └── user_validator.go  # [user_validator.go](mdc:gRPC-server/pkg/validator/user_validator.go) - Business rule validation
 │   └── errors/                # Error handling utilities
 ├── proto/                     # Protocol buffer definitions
 │   └── user.proto             # [user.proto](mdc:gRPC-server/proto/user.proto) - User service definition
 ├── tests/                     # Integration and e2e tests
 │   └── integration/
 │       └── user_integration_test.go  # [user_integration_test.go](mdc:gRPC-server/tests/integration/user_integration_test.go) - Integration tests
-├── scripts/                   # Build and deployment scripts
-└── deployments/               # Docker, k8s configurations
+├── Dockerfile                # [Dockerfile](mdc:gRPC-server/Dockerfile) - Multi-stage Docker build with clean architecture
+├── .dockerignore              # [.dockerignore](mdc:gRPC-server/.dockerignore) - Docker build optimization
+└── go.mod                     # Go module definition
+```
+
+**Project Root Files:**
+```
+grpc-api-gateway/
+├── docker-compose.yml         # [docker-compose.yml](mdc:docker-compose.yml) - Development Docker setup
+├── docker-compose.prod.yml    # [docker-compose.prod.yml](mdc:docker-compose.prod.yml) - Production Docker configuration
+├── env.example                # [env.example](mdc:env.example) - Environment configuration template
+├── DOCKER.md                  # [DOCKER.md](mdc:DOCKER.md) - Comprehensive Docker documentation
+├── Makefile                   # [Makefile](mdc:Makefile) - Development automation (35+ targets)
+├── scripts/                   # Development automation
+│   ├── setup-dev.sh          # [setup-dev.sh](mdc:scripts/setup-dev.sh) - Development environment setup
+│   ├── setup-git-hooks.sh    # [setup-git-hooks.sh](mdc:scripts/setup-git-hooks.sh) - Git hooks for code quality
+│   └── docker-dev.sh         # [docker-dev.sh](mdc:scripts/docker-dev.sh) - Docker development helper
+└── README.md                  # [README.md](mdc:README.md) - Project documentation
 ```
 
 ## Development Workflow
@@ -200,16 +217,42 @@ make test-integration     # Integration tests only
 make test-bench          # Benchmark tests
 make test-coverage       # Generate HTML coverage report
 
+# Architecture and compliance testing (NEW)
+make test-architecture   # Test clean architecture compliance
+make test-config         # Test configuration management
+make test-complete       # Complete test suite with architecture validation
+
 # Development workflow
 make test-watch          # Watch mode for TDD
 make test-race           # Race condition detection
-make test-all            # Complete test suite
 
 # Alternative direct commands
 go test ./internal/domain/...          # Domain tests
 go test ./internal/usecase/...         # Use case tests
 go test ./tests/integration/...        # Integration tests
 go test -bench=. ./internal/usecase/   # Benchmarks
+```
+
+### Docker Development Commands
+Based on [scripts/docker-dev.sh](mdc:scripts/docker-dev.sh) and [Makefile](mdc:Makefile):
+```bash
+# Docker development workflow
+make docker-build        # Build Docker images with clean architecture
+make docker-start        # Start services with Docker Compose
+make docker-stop         # Stop Docker services
+make docker-restart      # Restart Docker services
+make docker-logs         # Show Docker service logs
+make docker-status       # Show Docker service status
+make docker-clean        # Clean Docker resources
+make docker-rebuild      # Rebuild and restart Docker services
+make docker-test         # Build and test with Docker
+
+# Alternative direct commands
+./scripts/docker-dev.sh build      # Build images
+./scripts/docker-dev.sh start      # Start services
+./scripts/docker-dev.sh logs       # Follow logs
+./scripts/docker-dev.sh status     # Show status
+./scripts/docker-dev.sh clean      # Clean resources
 ```
 
 ## Configuration Management
