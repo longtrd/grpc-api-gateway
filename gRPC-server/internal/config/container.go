@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/longtrd/grpc-api-gateway/gRPC-server/internal/adapter"
 	"github.com/longtrd/grpc-api-gateway/gRPC-server/internal/domain"
+	"github.com/longtrd/grpc-api-gateway/gRPC-server/internal/handler"
 	"github.com/longtrd/grpc-api-gateway/gRPC-server/internal/mocks"
+	"github.com/longtrd/grpc-api-gateway/gRPC-server/internal/repository"
 	"github.com/longtrd/grpc-api-gateway/gRPC-server/internal/usecase"
 	"github.com/longtrd/grpc-api-gateway/gRPC-server/pkg/logger"
 	"github.com/longtrd/grpc-api-gateway/gRPC-server/pkg/validator"
@@ -23,8 +26,11 @@ type Container struct {
 	// Use Cases
 	UserUseCase domain.UserUseCase
 
+	// Adapters
+	UserAdapter *adapter.UserAdapter
+
 	// Handlers
-	// UserHandler will be added when gRPC handler is implemented
+	UserHandler *handler.UserHandler
 
 	// External services
 	// DatabaseClient will be added when database integration is needed
@@ -79,7 +85,10 @@ func (c *Container) buildDependencies() error {
 		return fmt.Errorf("failed to build use cases: %w", err)
 	}
 
-	// Build handlers would go here when implemented
+	// Build handlers and adapters
+	if err := c.buildHandlersAndAdapters(); err != nil {
+		return fmt.Errorf("failed to build handlers and adapters: %w", err)
+	}
 
 	return nil
 }
@@ -107,7 +116,7 @@ func (c *Container) buildEventPublisher() error {
 func (c *Container) buildRepositories() error {
 	switch c.Config.Database.Type {
 	case "memory":
-		c.UserRepository = mocks.NewMockUserRepository()
+		c.UserRepository = repository.NewMemoryUserRepository()
 	case "postgres":
 		// TODO: Implement PostgreSQL repository
 		return fmt.Errorf("postgres repository not implemented yet")
@@ -125,6 +134,21 @@ func (c *Container) buildUseCases() error {
 		c.Logger,
 		c.EventPublisher,
 	)
+	return nil
+}
+
+// buildHandlersAndAdapters builds handlers and adapters
+func (c *Container) buildHandlersAndAdapters() error {
+	// Build UserAdapter
+	c.UserAdapter = adapter.NewUserAdapter()
+
+	// Build UserHandler
+	c.UserHandler = handler.NewUserHandler(
+		c.UserUseCase,
+		c.UserAdapter,
+		c.Logger,
+	)
+
 	return nil
 }
 
@@ -175,6 +199,20 @@ func (c *Container) GetConfig() *Config {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Config
+}
+
+// GetUserHandler returns the user handler instance
+func (c *Container) GetUserHandler() *handler.UserHandler {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.UserHandler
+}
+
+// GetUserAdapter returns the user adapter instance
+func (c *Container) GetUserAdapter() *adapter.UserAdapter {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.UserAdapter
 }
 
 // NewTestContainer creates a container for testing

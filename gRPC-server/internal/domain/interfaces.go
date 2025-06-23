@@ -9,6 +9,8 @@ type UserRepository interface {
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, limit, offset int) ([]*User, error)
+	Count(ctx context.Context) (int, error)
+	Clear(ctx context.Context) error
 }
 
 // UserValidator defines the interface for user validation

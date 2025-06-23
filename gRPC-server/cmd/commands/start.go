@@ -11,6 +11,7 @@ import (
 
 	"github.com/longtrd/grpc-api-gateway/gRPC-server/internal/config"
 	"github.com/longtrd/grpc-api-gateway/gRPC-server/internal/handler"
+	pb "github.com/longtrd/grpc-api-gateway/gRPC-server/proto"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -137,6 +138,7 @@ func registerServices(server *grpc.Server, container *config.Container) {
 
 		// Set serving status for services
 		healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+		healthServer.SetServingStatus("user.UserService", grpc_health_v1.HealthCheckResponse_SERVING)
 
 		logger.Info("Registered health check service")
 	}
@@ -147,8 +149,14 @@ func registerServices(server *grpc.Server, container *config.Container) {
 		logger.Info("Registered reflection service")
 	}
 
-	// TODO: Register UserService when handler is implemented
-	// pb.RegisterUserServiceServer(server, container.UserHandler)
+	// Register UserService
+	userHandler := container.GetUserHandler()
+	if userHandler != nil {
+		pb.RegisterUserServiceServer(server, userHandler)
+		logger.Info("Registered UserService")
+	} else {
+		logger.Error("UserHandler is nil, cannot register UserService")
+	}
 
 	logger.Info("All services registered successfully")
 }
